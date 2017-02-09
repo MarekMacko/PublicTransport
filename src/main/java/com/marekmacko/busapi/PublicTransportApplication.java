@@ -16,7 +16,7 @@ public class PublicTransportApplication {
 	@PostConstruct
 	public void parseNewData() {
 		try {
-			new HtmlParser().parseLineStops("/pasazer/rozklady-jazdy,linia,1");
+			new HtmlParser().parseStopDepartures("/pasazer/rozklady-jazdy,tabliczka,1,527");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

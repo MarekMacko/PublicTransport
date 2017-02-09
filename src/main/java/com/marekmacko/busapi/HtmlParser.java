@@ -1,15 +1,18 @@
 package com.marekmacko.busapi;
 
-import com.marekmacko.busapi.models.Category;
+import com.marekmacko.busapi.models.Departures;
+import com.marekmacko.busapi.models.TransportCategory;
 import com.marekmacko.busapi.models.Line;
 import com.marekmacko.busapi.models.Stop;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -21,18 +24,18 @@ public class HtmlParser {
     private static final String TIMETABLE_BY_LINES = "pasazer/rozklady-jazdy,wedlug-linii";
 
     public void parseCategories() throws IOException {
-        List<Category> categories = new ArrayList<>();
+        List<TransportCategory> categories = new ArrayList<>();
         Document document = Jsoup.connect(ZDITM_BASE_URL + TIMETABLE_BY_LINES).get();
         Elements tables = document.select("ul.listalinii");
         tables.forEach(table -> {
             String description = parseDescription(table);
 
-            Category category = new Category();
-            category.setDescription(description);
+            TransportCategory transportCategory = new TransportCategory();
+            transportCategory.setDescription(description);
 
             List<Line> lines = parseLines(table);
-            category.setLines(lines);
-            categories.add(category);
+            transportCategory.setLines(lines);
+            categories.add(transportCategory);
         });
         LOGGER.log(Level.INFO, "success");
     }
@@ -61,7 +64,7 @@ public class HtmlParser {
         return line;
     }
 
-    private String parseStopsUrl(Element row) { 
+    private String parseStopsUrl(Element row) {
         Element link = row.select("a").first();
         String baseUri = row.baseUri();
         String timetableUrl = link.attr("href");
@@ -134,9 +137,72 @@ public class HtmlParser {
         for (Element e : row) {
             if (e.className().equals("przystanek")) {
                 Element link = e.getElementsByTag("a").first();
-                return link.attr("href");
+                String baseUrl = link.baseUri();
+                return baseUrl + link.attr("href");
             }
         }
         return null;
     }
+
+    public void parseStopDepartures(String departuresUrl) throws IOException {
+        Element body = Jsoup.connect(ZDITM_BASE_URL + departuresUrl)
+                .get()
+                .body();
+
+        Element timetable = body.select("div.rozkladmaly").first();
+        Elements tables = timetable.getElementsByTag("table");
+        List<Departures.Table> departuresTables = parseTables(tables);
+    }
+
+    private List<Departures.Table> parseTables(Elements tables) {
+        List<Departures.Table> departureTables = new ArrayList<>();
+        tables.forEach(table -> {
+            Departures.Table departuresTable = parseTable(table);
+            departureTables.add(departuresTable);
+        });
+        return departureTables;
+    }
+
+    private Departures.Table parseTable(Element table) {
+        String description = parseTableDescription(table);
+        List<Departures.Hour> departureHours = parseDeparturesHours(table);
+        Departures.Table departureTable = new Departures.Table();
+        departureTable.setDescription(description);
+        departureTable.setHours(departureHours);
+        return departureTable;
+    }
+
+    private String parseTableDescription(Element table) {
+        Element tableHeader = table.getElementsByTag("thead").first();
+        tableHeader.getElementsByTag("span").forEach(Node::remove);
+        return tableHeader.text();
+    }
+
+    private List<Departures.Hour> parseDeparturesHours(Element table) {
+        Element tableBody = table.getElementsByTag("tbody").first();
+        Elements rows = tableBody.getElementsByTag("tr");
+        List<Departures.Hour> departureHours = new ArrayList<>();
+        rows.forEach(row -> {
+            Elements rowValues = row.getElementsByTag("td");
+            Departures.Hour departureHour = parseDeparturesHour(rowValues);
+            departureHours.add(departureHour);
+        });
+        return departureHours;
+    }
+
+    private Departures.Hour parseDeparturesHour(Elements rowValues) {
+        Departures.Hour departureHour = new Departures.Hour();
+        rowValues.forEach(value -> {
+            if (value.className().equals("godzina")) {
+                String hour = value.text();
+                departureHour.setHour(hour);
+            } else if (value.className().isEmpty()) {
+                String minutes = value.text();
+                List<String> minutesList = Arrays.asList(minutes.split(" "));
+                departureHour.setMinutes(minutesList);
+            }
+        });
+        return departureHour;
+    }
+
 }

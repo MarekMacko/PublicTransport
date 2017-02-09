@@ -3,7 +3,7 @@ package com.marekmacko.busapi.models;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Category {
+public class TransportCategory {
 
     private String description;
     private List<Line> lines = new ArrayList<>();
